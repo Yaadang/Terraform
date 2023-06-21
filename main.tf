@@ -6,6 +6,7 @@ variable avail_zone {}
 variable env_prefix {}
 variable myip {}
 variable instance_type{}
+variable private_key_location{}
 
 resource "aws_vpc" "myapp-vpc"{
     cidr_block = var.vpc_cidr_block
@@ -119,7 +120,23 @@ resource "aws_instance" "myapp-server"{
     associate_public_ip_address = true
     key_name = "Docker-Server"
 
-    user_data = file("entryscript.sh")
+    # user_data = file("entryscript.sh")
+
+    connection {
+        type = "ssh"
+        host = self.public_ip
+        user = "ec2-user"
+        private_key = file(var.private_key_location)
+    }
+    
+    provisioner "file"{
+        source = "entry-script.sh"
+        destination = "/home/ec2-user/docker-scripting.sh"
+    }
+    provisioner "remote-exec" {
+        script = file("entryscript.sh")
+    }
+
 
     tags = {
         Name = "${var.env_prefix}-server"
