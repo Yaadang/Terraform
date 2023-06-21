@@ -130,11 +130,15 @@ resource "aws_instance" "myapp-server"{
     }
     
     provisioner "file"{
-        source = "entry-script.sh"
+        source = "entryscript.sh"
         destination = "/home/ec2-user/docker-scripting.sh"
     }
     provisioner "remote-exec" {
         script = file("entryscript.sh")
+    }
+
+    provisioner "local-exec"{
+        command = "echo ${self.public_ip} "
     }
 
 
