@@ -1,11 +1,6 @@
 provider "aws" {}
 
-variable vpc_cidr_block {}
-variable subnet_cidr_block {}
-variable avail_zone {}
-variable env_prefix {}
-variable myip {}
-variable instance_type{}
+
 
 resource "aws_vpc" "myapp-vpc"{
     cidr_block = var.vpc_cidr_block
@@ -14,108 +9,22 @@ resource "aws_vpc" "myapp-vpc"{
     }
 }
 
-resource "aws_subnet" "myapp-subnet"{
+module "myapp-subnet" {
+    source = "./modules/subnet"
+    subnet_cidr_block = var.subnet_cidr_block
+    avail_zone = var.avail_zone
+    env_prefix = var.env_prefix
     vpc_id = aws_vpc.myapp-vpc.id
-    cidr_block = var.subnet_cidr_block
-    availability_zone = var.avail_zone
-    tags = {
-        Name = " ${var.env_prefix}-subnet1"
-    }
-}
-
-resource "aws_internet_gateway" "myapp-igw" {
-    vpc_id = aws_vpc.myapp-vpc.id
-    tags = {
-        Name: " ${var.env_prefix}-igw"
-    }
-}
-//If we choose not to use the default RTB and create our own RTB
-/*resource "aws_route_table" "myapp-route-table"{
-    vpc_id = aws_vpc.myapp-vpc.id
-    route {
-        cidr_block = "0.0.0.0/0"
-        gateway_id = aws_internet_gateway.myapp-igw.id
-    }
-    tags = {
-        Name : " ${var.env_prefix}-routeTable"
-    }
-}*/
-
-resource "aws_route_table_association" "a-rtb-subnet" {
-    subnet_id = aws_subnet.myapp-subnet.id
-    route_table_id = aws_default_route_table.main-rtb.id
-}
-
-resource "aws_default_route_table" "main-rtb" {
     default_route_table_id = aws_vpc.myapp-vpc.default_route_table_id
 
-    route {
-        cidr_block = "0.0.0.0/0"
-        gateway_id = aws_internet_gateway.myapp-igw.id
-    }
-    tags = {
-        Name : " ${var.env_prefix}-main-rtb"
-    }
 }
 
-resource "aws_default_security_group" "myapp-sg"{
-    vpc_id = aws_vpc.myapp-vpc.id
-    
-    ingress{
-        from_port = 22
-        to_port = 22
-        protocol = "tcp"
-        cidr_blocks = [var.myip]
-    }
-    ingress{
-        from_port = 8080
-        to_port = 8080
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    egress {
-        from_port = 0
-        to_port = 0
-        protocol = "-1"
-        cidr_blocks = ["0.0.0.0/0"]
-        prefix_list_ids = []
-    }
-
-    tags = {
-        Name: "${var.env_prefix}-SG"
-    }
-
-}
-data "aws_ami" "latest-amazon-linux-image"{
-    most_recent = true
-    owners = ["amazon"]
-    filter {
-        name = "name"
-        values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-    }
-    filter {
-        name = "virtualization-type"
-        values = ["hvm"]
-    }
-
-}
-
-resource "aws_instance" "myapp-server"{
-    ami = data.aws_ami.latest-amazon-linux-image.id
+module "myapp-server" {
+    source = "./modules/webserver"
+    vpc-id = aws_vpc.myapp-vpc.id
+    myip = var.myip
+    env_prefix = var.env_prefix
     instance_type = var.instance_type
-
-    subnet_id = aws_subnet.myapp-subnet.id
-    vpc_security_group_ids = [aws_default_security_group.myapp-sg.id]
-    availability_zone = var.avail_zone
-
-    associate_public_ip_address = true
-    key_name = "Docker-Server"
-
-    user_data = file("entryscript.sh")
-
-    tags = {
-        Name = "${var.env_prefix}-server"
-    }
-    
+    subnet-id = module.myapp-subnet.subnet.id 
+    avail_zone = var.avail_zone
 }
